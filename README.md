@@ -6,38 +6,35 @@ Come follow my ML learning journey!
 **First to get a sense of how to use PyTorch and figure out how to use OpenCV and run models on it, I ran everything on the CPU and just got a simple webcam + model pipeline working as proof of concept**
 
 - I started by using the ResNET18 model, which is a deep convolutional neural network that's lightweight and trained on a set of 1000 classes
-***Important Note: ResNET18 expects a input image size of 224x224***
+(***Important Note: ResNET18 expects a input image size of 224x224***)
 
 - So, images needed to be preprocessed before feeding it into ResNet: resize image to (224x224), convert to expected tensor and channel order, normalize using pretrained ImageNet mean and std
 
 ### Baseline CPU performance results:
-RESNET
-- Using PIL images: 60-65 FPS
-- Using OpenCV native pipeline: 70-80 FPS 
+ResNET: 60-65 FPS (Using PIL images) | 70-80 FPS (Using OpenCV native pipeline)
 
-- The limitation for ResNET, while it was fast and lightweight, was that it only identifies the one major object in the frame and classifies that. I wanted a something that could do object detection and identify the bounded objects like in autonomous driving systems:
+- The limitation for ResNET, while it was fast and lightweight, was that it only identifies the one major object in the frame and classifies that. I wanted a something that could do object detection and identify the bounded objects like in autonomous driving systems shown below:
 
 ![AV object detection example](/images/av_object_detection_example.png)
 
 - So I tried using the DETR (Detection Transformer) model to perform object detection. DETR uses 4 main components:
-    1. CNN - Similar to ResNET that extracts a 2D feature map from the image
-    2. Encoder - The feature map is then flattened into a 1D sequence of feature vectors (aka embeddings) along with positional encodings which are passed into the encoder for multi-headed self-attention
-    3. Decoder - Takes in the learned positional embeddings to reason about the encoded image features.
-    4. FFN - The feed forward network, a classical MLP, that predicts the final bounding box coordinates and class labels
+1. CNN - Similar to ResNET that extracts a 2D feature map from the image
+2. Encoder - The feature map is then flattened into a 1D sequence of feature vectors (aka embeddings) along with positional encodings which are passed into the encoder for multi-headed self-attention
+3. Decoder - Takes in the learned positional embeddings to reason about the encoded image features.
+4. FFN - The feed forward network, a classical MLP, that predicts the final bounding box coordinates and class labels
 
-- While this achieved the style of webcam classifier I wanted, it was slow and was only trained to classify the 80 labels in the COCO dataset
+- While this achieved the style of webcam classifier I wanted, it was very slow and was only trained to classify the 80 labels in the COCO dataset
 
 ### Baseline CPU performance results:
-DETR
-- Using PIL images: 6-8 FPS
-- Using OpenCV native pipeline: 8-10 FPS
+DETR: 6-8 FPS (Using PIL images) | 8-10 FPS (Using OpenCV native pipeline)
+
+- Also I switched from converting my openCV input image to PIL to using the openCV native pipeline since that provided slight performance benefits
 
 ## 2. GPU Acceleration with PyTorch
--  Moved the model inference step and input data to GPU memory so inference can be done on the GPU instead to see if this simple step can improve performance and it did!
+- Moved the model inference step and input data to GPU memory so inference can be done on the GPU instead to see if this simple step can improve performance and it did!
 
 ### GPU performance results:
-**DETR: Avg 60 FPS**
-**RESNET: Avg 300+ FPS**
+DETR: Avg 60 FPS | RESNET: Avg 300+ FPS
 
 ## 3. Combined DETR + ResNet Models
 - After playing with both models, I thought why not combine the two so that I can get fine grain classification from ResNET + object detection with bounding boxes from DETR? This way I can increase the number of classifiable objects from 80 -> 1000 from the objects detected by DETR.
