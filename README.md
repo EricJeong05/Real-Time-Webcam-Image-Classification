@@ -1,35 +1,75 @@
-# Real-Time-Webcam-Image-Classification
-Real-Time Webcam Classifier with CUDA
+# Real Time Webcam Image Classification with CUDA
+This project is mainly for me to get my feet wet with working with pretrained models, running inference, GPU acceleration, and more!
+Come follow my ML learning journey!
 
-1. Get a CPU Webcam + Pretrained Classifier pipeline working for baseline
-    - Using DETR (Transformer) & ResNET (CNN)
-    - Playing with different preprocessing methods (image size, image type, normalization, etc)
+## 1. Get a CPU Webcam + Pretrained Classifier pipeline working for baseline
+    **First to get a sense of how to use PyTorch and figure out how to use OpenCV and run models on it, I ran everything on the CPU and just got a simple webcam + model pipeline working as proof of concept**
 
-    DETR
-    - Using PIL images: 6-8 FPS
-    - Using OpenCV native pipeline: 8-10 FPS
-    - Decreasing image size increases frame rate
+    - I started by using the ResNET18 model, which is a deep convolutional neural network that's lightweight and trained on a set of 1000 classes
+    ***Important Note: ResNET18 expects a input image size of 224x224***
 
+    - So, images needed to be preprocessed before feeding it into ResNet: resize image to (224x224), convert to expected tensor and channel order, normalize using pretrained ImageNet mean and std
+    
+### Baseline CPU performance results:
     RESNET
     - Using PIL images: 60-65 FPS
     - Using OpenCV native pipeline: 70-80 FPS 
-    - Decreasing image size increases frame rate
 
-2. GPU Acceleration with PyTorch
-    -  Move the model and input data to GPU memory so inference can be done on the GPU vs CPU
+    - The limitation for ResNET, while it was fast and lightweight, was that it only identifies the one major object in the frame and classifies that. I wanted a something that could do object detection and identify the bounded objects like in autonomous driving systems:
 
+    ![AV object detection example](/images/av_object_detection_example.png)
+
+    - So I tried using the DETR (Detection Transformer) model to perform object detection. DETR uses 4 main components:
+        1. CNN - Similar to ResNET that extracts a 2D feature map from the image
+        2. Encoder - The feature map is then flattened into a 1D sequence of feature vectors (aka embeddings) along with positional encodings which are passed into the encoder for multi-headed self-attention
+        3. Decoder - Takes in the learned positional embeddings to reason about the encoded image features.
+        4. FFN - The feed forward network, a classical MLP, that predicts the final bounding box coordinates and class labels
+
+    - While this achieved the style of webcam classifier I wanted, it was slow and was only trained to classify the 80 labels in the COCO dataset
+
+### Baseline CPU performance results:
     DETR
-    - Avg: 60 FPS
+    - Using PIL images: 6-8 FPS
+    - Using OpenCV native pipeline: 8-10 FPS
 
-    RESNET
-    - Avg: 300+ FPS
+## 2. GPU Acceleration with PyTorch
+    -  Moved the model inference step and input data to GPU memory so inference can be done on the GPU instead to see if this simple step can improve performance and it did!
 
-3. Real-Time Image Filters with CUDA
-    - Create external CUDA kernels and load them into webcam pipeline for real-time image filters
-    - Sobel edge detection
+### GPU performance results:
+    ** DETR: Avg 60 FPS **
+    ** RESNET: Avg 300+ FPS **
 
-4. Combine Filters + Classification
-    - 
+## 3. Combined DETR + ResNet Models
+    - After playing with both models, I thought why not combine the two so that I can get fine grain classification from ResNET + object detection with bounding boxes from DETR? This way I can increase the number of classifiable objects from 80 -> 1000 from the objects detected by DETR.
+    - So what I now do is run DETR on the input frame first, then for all the objects detected, crop the image within the bounding box and run ResNET on that cropped image. 
+    - I display the ResNET classification on top of the DETR bounding box
+    - This definitely had a big hit in performance, dropping the fps around half compared to DETR only
 
-5. Optimizations (Stretch Goals)
-    - 
+### Performance results:
+    Avg: 20-30 FPS
+
+## 3.5 Testing!
+    - Collect a small custom dataset (say 100–200 webcam snapshots, manually labeled OR COCO Val). Run inference and compute precision/recall.
+    - Show qualitative demo video (pointing webcam at objects) as a supplement, not your only metric.
+
+# -- Improving runtime performance and classification performance! --
+
+## 4. Real-Time Image Filters with CUDA
+    - Create a guided filter in CUDA to preserve the edge structure while removing noise with faster compute time and load them into webcam pipeline for real-time image filters
+    - Done to try and improve preprocessing for better overall inference
+
+## 5. Combine Filters + Classification
+    - Run CUDA filter & inference on different CUDA streams in parallel to learn how to use CUDA streams
+    - No noticeable performance improvements since DETR is still the main big bottleneck 
+
+## 6. Optimizations
+    - Run Nsight Systems (nsys) → see where the bottlenecks are:
+        - pre_optimization_profile_report -> cvtColor at resize done on CPU, only guided_filter, normalization, and model inference done on GPU
+        - 
+    - Apply batching of ResNet crops
+    - Keep frames on GPU
+    - Try mixed precision inference + lower resolution for DETR.
+
+## 7. Final Testing
+    - Benchmark FPS + per-component latency (Preprocessing, DETR, ResNet, Postprocessing) to see if optimizations & cuda streams improved runtime performance
+    - Benchmark inference and compute precision/recall tests to see if CUDA kernal improved inference performance
