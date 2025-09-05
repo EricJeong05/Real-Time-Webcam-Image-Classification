@@ -38,35 +38,38 @@ DETR: Avg 60 FPS | RESNET: Avg 300+ FPS
 
 ## 3. Combined DETR + ResNet Models
 - After playing with both models, I thought why not combine the two so that I can get fine grain classification from ResNET + object detection with bounding boxes from DETR? This way I can increase the number of classifiable objects from 80 -> 1000 from the objects detected by DETR.
-- So what I now do is run DETR on the input frame first, then for all the objects detected, crop the image within the bounding box and run ResNET on that cropped image. 
-- I display the ResNET classification on top of the DETR bounding box
+- So what I now do is run DETR on the input frame first, then for all the objects detected, crop the image within the bounding box and run ResNET on that cropped image. I then display the ResNET classification on top of the DETR bounding box
+
+- The original input image I'm getting from the webcam is 640 x 480 so I didn't do any resizing for my DETR input. I want to keep the image resolution as high as possible so that after cropping out the bounding boxes, I have enough data to reasonabily resize to the expected ResNet input of 224 x 224.
+
 - This definitely had a big hit in performance, dropping the fps around half compared to DETR only
-
 ### Performance results:
-Avg: 20-30 FPS
+Avg: 30-40 FPS
 
-## 3.5 Testing!
-- Collect a small custom dataset (say 100–200 webcam snapshots, manually labeled OR COCO Val). Run inference and compute precision/recall.
-- Show qualitative demo video (pointing webcam at objects) as a supplement, not your only metric.
-
-# Improving runtime and classification performance!
+# Improving runtime performance!
 
 ## 4. Real-Time Image Filters with CUDA
 - Create a guided filter in CUDA to preserve the edge structure while removing noise with faster compute time and load them into webcam pipeline for real-time image filters
-- Done to try and improve preprocessing for better overall inference
+- Done to try and improve preprocessing for better overall inference and to learn more about CUDA!
 
 ## 5. Combine Filters + Classification
 - Run CUDA filter & inference on different CUDA streams in parallel to learn how to use CUDA streams
-- No noticeable performance improvements since DETR is still the main big bottleneck 
+- No noticeable runtime fps improvements since DETR is still the main big bottleneck 
+
+### Performance results with CUDA filters & CUDA streams:
+Avg: 18-20 FPS
 
 ## 6. Optimizations
 - Run Nsight Systems (nsys) → see where the bottlenecks are:
     - pre_optimization_profile_report -> cvtColor at resize done on CPU, only guided_filter, normalization, and model inference done on GPU
 
-- Apply batching of ResNet crops
-- Keep frames on GPU
-- Try mixed precision inference + lower resolution for DETR.
+1. Try mixed precision inference on DETR (quantization float32 -> float16): N improvement, might not be worth since image size is small enough 
+2. Apply batching of ResNet crops
+3. Run preprocessing on GPU 
+4. Do Async memory transfers to GPU
+
+### Performance results:
+Avg: 24fps
 
 ## 7. Final Testing
 - Benchmark FPS + per-component latency (Preprocessing, DETR, ResNet, Postprocessing) to see if optimizations & cuda streams improved runtime performance
-- Benchmark inference and compute precision/recall tests to see if CUDA kernal improved inference performance

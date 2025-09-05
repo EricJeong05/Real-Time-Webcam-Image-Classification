@@ -1,13 +1,7 @@
-// =================================================================================
-// edge_detect.cu
-//
-// This file contains the CUDA implementation for a simple real-time edge detection
-// algorithm. It includes a CUDA kernel for processing the image on the GPU and a
-// host function to manage memory and launch the kernel.
-// =================================================================================
-
 #include <cuda_runtime.h>
 #include <stdio.h>
+
+// Compile with: nvcc -o edge_detect.dll edge_detect.cu -shared
 
 // =================================================================================
 // CUDA Kernel: edge_detect_kernel
