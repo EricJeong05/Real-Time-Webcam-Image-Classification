@@ -46,8 +46,6 @@ DETR: Avg 60 FPS | RESNET: Avg 300+ FPS
 ### Performance results:
 Avg: 30-40 FPS
 
-# Improving runtime performance!
-
 ## 4. Real-Time Image Filters with CUDA
 - Create a guided filter in CUDA to preserve the edge structure while removing noise with faster compute time and load them into webcam pipeline for real-time image filters
 - Done to try and improve preprocessing for better overall inference and to learn more about CUDA!
@@ -59,6 +57,7 @@ Avg: 30-40 FPS
 ### Performance results with CUDA filters & CUDA streams:
 Avg: 18-20 FPS
 
+# Improving runtime performance!
 ## 6. Optimizations
 - Run Nsight Systems (nsys) → see where the bottlenecks are:
     - pre_optimization_profile_report -> cvtColor at resize done on CPU, only guided_filter, normalization, and model inference done on GPU
@@ -69,7 +68,10 @@ Avg: 18-20 FPS
 4. Do Async memory transfers to GPU
 
 ### Performance results:
-Avg: 24fps
+Avg: 25fps
+Without guided filter cuda kernel: 50fps
+
+DETR is a heavy model in itself so didn't expect a huge bump in performance, so this is expected.
 
 ## 7. Final Testing
 - Benchmark FPS + per-component latency (Preprocessing, DETR, ResNet, Postprocessing) to see if optimizations & cuda streams improved runtime performance
