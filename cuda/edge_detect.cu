@@ -64,7 +64,7 @@ extern "C" __declspec(dllexport) void run_edge_detect(
     cudaMallocManaged(&deviceOutputImage, imageSize);
 
     // Copy the input image data from the host (CPU) to the managed memory (GPU)
-    memcpy(deviceInputImage, hostInputImage, imageSize);
+    cudaMemcpy(deviceInputImage, hostInputImage, imageSize, cudaMemcpyHostToDevice);
 
     // Define the dimensions of the thread blocks and the grid
     dim3 blockDim(16, 16);
@@ -78,7 +78,7 @@ extern "C" __declspec(dllexport) void run_edge_detect(
     cudaDeviceSynchronize();
 
     // Copy the resulting edge-detected image from the GPU back to the host
-    memcpy(hostOutputImage, deviceOutputImage, imageSize);
+    cudaMemcpy(hostOutputImage, deviceOutputImage, imageSize, cudaMemcpyDeviceToHost);
 
     // Free the allocated memory on the GPU
     cudaFree(deviceInputImage);

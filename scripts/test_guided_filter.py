@@ -6,7 +6,7 @@ import ctypes
 
 # Load the CUDA library
 try:
-    dll_path = "D:/dev/Real-Time-Webcam-Image-Classification/cuda/guided_filter.dll"
+    dll_path = "../Real-Time-Webcam-Image-Classification/cuda/exports/guided_filter.dll"
     guided_filter = ctypes.windll.LoadLibrary(dll_path)  # Use windll instead of cdll for Windows
     print(f"Successfully loaded {dll_path}")
     
@@ -74,7 +74,7 @@ def apply_guided_filter(image, radius=2, epsilon=0.1):
 
 if __name__ == "__main__":
     # Read test image
-    image = cv2.imread("D:/dev/Real-Time-Webcam-Image-Classification/cuda/test_image.jpg")
+    image = cv2.imread("../Real-Time-Webcam-Image-Classification/scripts/test_image.jpg")
     if image is None:
         print("Error: Could not read image")
         exit(1)
@@ -95,7 +95,7 @@ if __name__ == "__main__":
             filtered_bgr = cv2.cvtColor(filtered, cv2.COLOR_RGB2BGR)
             
             # Save result
-            output_name = f"filtered_r{radius}_e{epsilon}.jpg"
+            output_name = f"../Real-Time-Webcam-Image-Classification/scripts/filtered images/filtered_r{radius}_e{epsilon}.jpg"
             cv2.imwrite(output_name, filtered_bgr)
             print(f"Saved {output_name}")
     

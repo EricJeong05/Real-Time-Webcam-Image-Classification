@@ -59,19 +59,13 @@ Avg: 18-20 FPS
 
 # Improving runtime performance!
 ## 6. Optimizations
-- Run Nsight Systems (nsys) → see where the bottlenecks are:
-    - pre_optimization_profile_report -> cvtColor at resize done on CPU, only guided_filter, normalization, and model inference done on GPU
+- Ran Nsight Systems (nsys) to see where the bottlenecks are. From a initial pass, there was still a big chunk of processing time held up in the CPU space and time was eaten by CPU-GPU memory transfers. So I decided to tackle those areas and try and move as much preprocessing to the GPU and batch all the image crops done by DETR into one to perform a single ResNet forward pass instead of multiple.
 
-1. Try mixed precision inference on DETR (quantization float32 -> float16): N improvement, might not be worth since image size is small enough 
-2. Apply batching of ResNet crops
-3. Run preprocessing on GPU 
-4. Do Async memory transfers to GPU
+- I used pin_memory and to(device) to run normalization and conversion to tensor on GPU before the pass through DETR and I used torch.stack to batch all crops in a single ResNet forward pass, reducing the number of GPU operations
 
-### Performance results:
-Avg: 25fps
-Without guided filter cuda kernel: 50fps
+### Final Performance Results & Summary:
+When running with a cuda image filter: Avg 25-30fps | Without cuda image filter: Avg 50-55fps
 
-DETR is a heavy model in itself so didn't expect a huge bump in performance, so this is expected.
-
-## 7. Final Testing
-- Benchmark FPS + per-component latency (Preprocessing, DETR, ResNet, Postprocessing) to see if optimizations & cuda streams improved runtime performance
+- Doing these optimization steps provided pretty decent gains in FPS on inference: +~44% increase with CUDA image filter running and a +~50% increase when running without a CUDA image filter!
+- 
+-  Since DETR a heavy model, we take into account that that's not modifiable and I want to just see how fast I can make it with DETR.
