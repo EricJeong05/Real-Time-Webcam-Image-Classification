@@ -8,35 +8,35 @@ Come follow my ML learning journey!
 - I started by using the ResNET18 model, which is a deep convolutional neural network that's lightweight and trained on a set of 1000 classes
 (***Important Note: ResNET18 expects a input image size of 224x224***)
 
-- So, images needed to be preprocessed before feeding it into ResNet: resize image to (224x224), convert to expected tensor and channel order, normalize using pretrained ImageNet mean and std
+- So, images needed to be preprocessed before feeding it into ResNet: resize image to (224x224), convert to expected tensor and channel order, normalize using pretrained ImageNet mean and std. During preprocessing it was found using the OpenCV native functions to do this processing instead of using PIL images was faster, so that was used for the entirety of this project.
 
 ### Baseline CPU performance results:
-ResNET: 60-65 FPS (Using PIL images) | 70-80 FPS (Using OpenCV native pipeline)
+'ResNET: Avg 70-80 FPS'
 
 - The limitation for ResNET, while it was fast and lightweight, was that it only identifies the one major object in the frame and classifies that. I wanted a something that could do object detection and identify the bounded objects like in autonomous driving systems shown below:
 
 ![AV object detection example](/images/av_object_detection_example.png)
 
+---
 - So I tried using the DETR (Detection Transformer) model to perform object detection. DETR uses 4 main components:
 1. CNN - Similar to ResNET that extracts a 2D feature map from the image
 2. Encoder - The feature map is then flattened into a 1D sequence of feature vectors (aka embeddings) along with positional encodings which are passed into the encoder for multi-headed self-attention
 3. Decoder - Takes in the learned positional embeddings to reason about the encoded image features.
 4. FFN - The feed forward network, a classical MLP, that predicts the final bounding box coordinates and class labels
+---
 
 - While this achieved the style of webcam classifier I wanted, it was very slow and was only trained to classify the 80 labels in the COCO dataset
 
 ### Baseline CPU performance results:
-DETR: 6-8 FPS (Using PIL images) | 8-10 FPS (Using OpenCV native pipeline)
-
-- Also I switched from converting my openCV input image to PIL to using the openCV native pipeline since that provided slight performance benefits
+'DETR: 8-10 FPS'
 
 ## 2. GPU Acceleration with PyTorch
 - Moved the model inference step and input data to GPU memory so inference can be done on the GPU instead to see if this simple step can improve performance and it did!
 
 ### GPU performance results:
-DETR: Avg 60 FPS | RESNET: Avg 300+ FPS
+'DETR: Avg 60 FPS | ResNET: Avg 300+ FPS'
 
-## 3. Combined DETR + ResNet Models
+## 3. Combined DETR + ResNET Models
 - After playing with both models, I thought why not combine the two so that I can get fine grain classification from ResNET + object detection with bounding boxes from DETR? This way I can increase the number of classifiable objects from 80 -> 1000 from the objects detected by DETR.
 - So what I now do is run DETR on the input frame first, then for all the objects detected, crop the image within the bounding box and run ResNET on that cropped image. I then display the ResNET classification on top of the DETR bounding box
 
@@ -44,18 +44,26 @@ DETR: Avg 60 FPS | RESNET: Avg 300+ FPS
 
 - This definitely had a big hit in performance, dropping the fps around half compared to DETR only
 ### Performance results:
-Avg: 30-40 FPS
+'DETR + ResNET: Avg 30-40 FPS'
 
 ## 4. Real-Time Image Filters with CUDA
-- Create a guided filter in CUDA to preserve the edge structure while removing noise with faster compute time and load them into webcam pipeline for real-time image filters
-- Done to try and improve preprocessing for better overall inference and to learn more about CUDA!
+- Created a guided filter in CUDA to preserve the edge structure while removing noise with and created a edge detection filter to accentuate just the edges of objects in the image
+- Loaded these CUDA filteres into the webcam pipeline for real-time image filters
+- This was more of a exercise in learning more about CUDA and how to implement kernels using PyTorch 
+- Since I'm not too sure if it really improved inference performance since you can see in the screenshots of my model running below, it makes some interesting classifications haha...
+
+
+| Edge Detector       | Guided Filter           |
+| ------------- |:-------------:| 
+| ![My Model Running!](/images/detr_resnet_model_with_edge_detector_inference.png) | ![My Model Running!](/images/detr_resnet_model_with_guided_filter_inference.png)
+ | 
 
 ## 5. Combine Filters + Classification
 - Run CUDA filter & inference on different CUDA streams in parallel to learn how to use CUDA streams
 - No noticeable runtime fps improvements since DETR is still the main big bottleneck 
 
 ### Performance results with CUDA filters & CUDA streams:
-Avg: 18-20 FPS
+'DETR + ResNET: Avg 18-20 FPS'
 
 # Improving runtime performance!
 ## 6. Optimizations
@@ -64,8 +72,17 @@ Avg: 18-20 FPS
 - I used pin_memory and to(device) to run normalization and conversion to tensor on GPU before the pass through DETR and I used torch.stack to batch all crops in a single ResNet forward pass, reducing the number of GPU operations
 
 ### Final Performance Results & Summary:
-When running with a cuda image filter: Avg 25-30fps | Without cuda image filter: Avg 50-55fps
+'With CUDA image filter: Avg 25-30 FPS | Without CUDA image filter: Avg 50-55 FPS'
 
-- Doing these optimization steps provided pretty decent gains in FPS on inference: +~44% increase with CUDA image filter running and a +~50% increase when running without a CUDA image filter!
-- 
--  Since DETR a heavy model, we take into account that that's not modifiable and I want to just see how fast I can make it with DETR.
+![My Model Running!](/images/detr_resnet_model_inference.png)
+
+- Doing these optimization steps provided pretty decent gains in FPS on inference: +~44% increase with CUDA image filter running and a +~50% increase when running without a CUDA image filter! So that's a success!
+- It's known that DETR is a model that's heavy in processing time, and I could use other lightweight object detection models, but I wanted to get experience with transformer based models see how fast I can push it.
+- There are definitely plenty of more optimization that can be done to speed this model up further, such as:
+1. Quantization
+2. Optimizing CUDA kernels - like kernel fusion
+3. Async prefetching of memory
+4. etc...
+- I can definitely go down this rabbit hole and optimize to oblivion, but since this is supposed to be a initial first pass on just getting started with working with ML models, I think this is a good place to stop.
+---
+- *Stay tuned for future projects!*
