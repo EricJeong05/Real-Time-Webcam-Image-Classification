@@ -5,13 +5,13 @@ Come follow my ML learning journey!
 ## 1. Get a CPU Webcam + Pretrained Classifier pipeline working for baseline
 **First to get a sense of how to use PyTorch and figure out how to use OpenCV and run models on it, I ran everything on the CPU and just got a simple webcam + model pipeline working as proof of concept**
 
-- I started by using the ResNET18 model, which is a deep convolutional neural network that's lightweight and trained on a set of 1000 classes
+- I started by using the ResNET18 model, which is a deep convolutional neural network that`s lightweight and trained on a set of 1000 classes
 (***Important Note: ResNET18 expects a input image size of 224x224***)
 
 - So, images needed to be preprocessed before feeding it into ResNet: resize image to (224x224), convert to expected tensor and channel order, normalize using pretrained ImageNet mean and std. During preprocessing it was found using the OpenCV native functions to do this processing instead of using PIL images was faster, so that was used for the entirety of this project.
 
 ### Baseline CPU performance results:
-'ResNET: Avg 70-80 FPS'
+`ResNET: Avg 70-80 FPS`
 
 - The limitation for ResNET, while it was fast and lightweight, was that it only identifies the one major object in the frame and classifies that. I wanted a something that could do object detection and identify the bounded objects like in autonomous driving systems shown below:
 
@@ -28,13 +28,13 @@ Come follow my ML learning journey!
 - While this achieved the style of webcam classifier I wanted, it was very slow and was only trained to classify the 80 labels in the COCO dataset
 
 ### Baseline CPU performance results:
-'DETR: 8-10 FPS'
+`DETR: 8-10 FPS`
 
 ## 2. GPU Acceleration with PyTorch
 - Moved the model inference step and input data to GPU memory so inference can be done on the GPU instead to see if this simple step can improve performance and it did!
 
 ### GPU performance results:
-'DETR: Avg 60 FPS | ResNET: Avg 300+ FPS'
+`DETR: Avg 60 FPS | ResNET: Avg 300+ FPS`
 
 ## 3. Combined DETR + ResNET Models
 - After playing with both models, I thought why not combine the two so that I can get fine grain classification from ResNET + object detection with bounding boxes from DETR? This way I can increase the number of classifiable objects from 80 -> 1000 from the objects detected by DETR.
@@ -44,7 +44,7 @@ Come follow my ML learning journey!
 
 - This definitely had a big hit in performance, dropping the fps around half compared to DETR only
 ### Performance results:
-'DETR + ResNET: Avg 30-40 FPS'
+`DETR + ResNET: Avg 30-40 FPS`
 
 ## 4. Real-Time Image Filters with CUDA
 - Created a guided filter in CUDA to preserve the edge structure while removing noise with and created a edge detection filter to accentuate just the edges of objects in the image
@@ -56,14 +56,13 @@ Come follow my ML learning journey!
 | Edge Detector       | Guided Filter           |
 | ------------- |:-------------:| 
 | ![My Model Running!](/images/detr_resnet_model_with_edge_detector_inference.png) | ![My Model Running!](/images/detr_resnet_model_with_guided_filter_inference.png)
- | 
 
 ## 5. Combine Filters + Classification
 - Run CUDA filter & inference on different CUDA streams in parallel to learn how to use CUDA streams
 - No noticeable runtime fps improvements since DETR is still the main big bottleneck 
 
 ### Performance results with CUDA filters & CUDA streams:
-'DETR + ResNET: Avg 18-20 FPS'
+`DETR + ResNET: Avg 18-20 FPS`
 
 # Improving runtime performance!
 ## 6. Optimizations
@@ -72,7 +71,7 @@ Come follow my ML learning journey!
 - I used pin_memory and to(device) to run normalization and conversion to tensor on GPU before the pass through DETR and I used torch.stack to batch all crops in a single ResNet forward pass, reducing the number of GPU operations
 
 ### Final Performance Results & Summary:
-'With CUDA image filter: Avg 25-30 FPS | Without CUDA image filter: Avg 50-55 FPS'
+`With CUDA image filter: Avg 25-30 FPS | Without CUDA image filter: Avg 50-55 FPS`
 
 ![My Model Running!](/images/detr_resnet_model_inference.png)
 

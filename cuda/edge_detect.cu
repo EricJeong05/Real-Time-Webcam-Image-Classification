@@ -3,14 +3,10 @@
 
 // Compile with: nvcc -o edge_detect.dll edge_detect.cu -shared
 
-// =================================================================================
-// CUDA Kernel: edge_detect_kernel
-//
 // This kernel performs a simple edge detection on an input image. For each pixel,
 // it calculates the intensity gradient in the x and y directions and combines them
 // to produce an edge-detected output image.
-// =================================================================================
-__global__ void edge_detect_kernel(
+__global__ void EdgeDetectKernel(
     unsigned char* inputImage, unsigned char* outputImage,
     int imageWidth, int imageHeight, int numChannels)
 {
@@ -51,20 +47,20 @@ __global__ void edge_detect_kernel(
 // device, kernel launch, and final cleanup. This function is exported as a DLL
 // to be callable from other applications.
 // =================================================================================
-extern "C" __declspec(dllexport) void run_edge_detect(
-    unsigned char* hostInputImage, unsigned char* hostOutputImage,
+extern "C" __declspec(dllexport) void RunEdgeDetect(
+    unsigned char* h_input, unsigned char* h_output,
     int imageWidth, int imageHeight, int numChannels)
 {
-    unsigned char *deviceInputImage, *deviceOutputImage;
+    unsigned char *d_input, *d_output;
     size_t imageSize = imageWidth * imageHeight * numChannels * sizeof(unsigned char);
 
     // Allocate Unified Memory for the input and output images on the GPU.
     // Unified Memory is accessible from both the CPU and GPU.
-    cudaMallocManaged(&deviceInputImage, imageSize);
-    cudaMallocManaged(&deviceOutputImage, imageSize);
+    cudaMallocManaged(&d_input, imageSize);
+    cudaMallocManaged(&d_output, imageSize);
 
     // Copy the input image data from the host (CPU) to the managed memory (GPU)
-    cudaMemcpy(deviceInputImage, hostInputImage, imageSize, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, h_input, imageSize, cudaMemcpyHostToDevice);
 
     // Define the dimensions of the thread blocks and the grid
     dim3 blockDim(16, 16);
@@ -72,15 +68,15 @@ extern "C" __declspec(dllexport) void run_edge_detect(
                  (imageHeight + blockDim.y - 1) / blockDim.y);
 
     // Launch the edge detection kernel on the GPU
-    edge_detect_kernel<<<gridDim, blockDim>>>(deviceInputImage, deviceOutputImage, imageWidth, imageHeight, numChannels);
+    EdgeDetectKernel<<<gridDim, blockDim>>>(d_input, d_output, imageWidth, imageHeight, numChannels);
 
     // Synchronize the CPU and GPU to ensure the kernel has finished execution
     cudaDeviceSynchronize();
 
     // Copy the resulting edge-detected image from the GPU back to the host
-    cudaMemcpy(hostOutputImage, deviceOutputImage, imageSize, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_output, d_output, imageSize, cudaMemcpyDeviceToHost);
 
     // Free the allocated memory on the GPU
-    cudaFree(deviceInputImage);
-    cudaFree(deviceOutputImage);
+    cudaFree(d_input);
+    cudaFree(d_output);
 }

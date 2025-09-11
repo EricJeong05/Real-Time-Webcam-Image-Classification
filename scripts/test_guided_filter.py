@@ -11,26 +11,15 @@ try:
     print(f"Successfully loaded {dll_path}")
     
     # Verify the function exists
-    if not hasattr(guided_filter, 'applyGuidedFilter'):
-        print("Error: 'applyGuidedFilter' function not found in DLL")
+    if not hasattr(guided_filter, 'ApplyGuidedFilter'):
+        print("Error: 'ApplyGuidedFilter' function not found in DLL")
         print("Available functions:", [func for func in dir(guided_filter) if not func.startswith('_')])
         exit(1)
 except Exception as e:
     print(f"Error loading DLL: {e}")
     exit(1)
 
-def apply_guided_filter(image, radius=2, epsilon=0.1):
-    """
-    Apply guided filter to an image using CUDA implementation
-    
-    Args:
-        image: numpy array of shape (H, W, C) in uint8 format
-        radius: filter window radius
-        epsilon: regularization parameter
-    
-    Returns:
-        filtered image as numpy array
-    """
+def ApplyGuidedFilter(image, radius=2, epsilon=0.1):
     # Ensure image is in the correct format
     if image.dtype != np.uint8:
         image = (image * 255).astype(np.uint8)
@@ -44,7 +33,7 @@ def apply_guided_filter(image, radius=2, epsilon=0.1):
     output = np.zeros_like(image)
     
     # Get the function from the DLL
-    apply_filter = guided_filter.applyGuidedFilter
+    apply_filter = guided_filter.ApplyGuidedFilter
     apply_filter.argtypes = [
         POINTER(c_ubyte),    # input image
         POINTER(c_ubyte),    # output image
@@ -60,7 +49,7 @@ def apply_guided_filter(image, radius=2, epsilon=0.1):
     output_ptr = output.ctypes.data_as(POINTER(c_ubyte))
     
     # Call the CUDA function
-    guided_filter.applyGuidedFilter(
+    guided_filter.ApplyGuidedFilter(
         input_ptr,
         output_ptr,
         width,
@@ -89,7 +78,7 @@ if __name__ == "__main__":
     for radius in radius_values:
         for epsilon in epsilon_values:
             # Apply filter
-            filtered = apply_guided_filter(image, radius=radius, epsilon=epsilon)
+            filtered = ApplyGuidedFilter(image, radius=radius, epsilon=epsilon)
             
             # Convert back to BGR for saving
             filtered_bgr = cv2.cvtColor(filtered, cv2.COLOR_RGB2BGR)

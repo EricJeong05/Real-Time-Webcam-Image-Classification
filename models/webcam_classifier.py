@@ -16,24 +16,24 @@ imageNet_std = [0.229, 0.224, 0.225]
 
 # Load custom CUDA DLL for edge detection
 edge_filter = ctypes.cdll.LoadLibrary("../Real-Time-Webcam-Image-Classification/cuda/exports/edge_detect.dll")
-edge_filter.run_edge_detect.argtypes = [
+edge_filter.RunEdgeDetect.argtypes = [
     ctypes.POINTER(ctypes.c_ubyte),  # input
     ctypes.POINTER(ctypes.c_ubyte),  # output
     ctypes.c_int, ctypes.c_int, ctypes.c_int
 ]
 
 guided_filter = ctypes.cdll.LoadLibrary("../Real-Time-Webcam-Image-Classification/cuda/exports/guided_filter.dll")
-guided_filter.applyGuidedFilter.argtypes = [
+guided_filter.ApplyGuidedFilter.argtypes = [
     ctypes.POINTER(ctypes.c_ubyte),  # input
     ctypes.POINTER(ctypes.c_ubyte),  # output
     ctypes.c_int, ctypes.c_int,      # width, height
-    ctypes.c_float,                   # epsilon
-    ctypes.c_int,                     # radius
-    ctypes.c_int                      # numChannels
+    ctypes.c_float,                  # epsilon
+    ctypes.c_int,                    # radius
+    ctypes.c_int                     # numChannels
 ]
 
 class CUDAFilters():
-    def edge_detect_cuda(self, frame_rgb):
+    def EdgeDetectFilter(self, frame_rgb):
         h, w, c = frame_rgb.shape
         inp = frame_rgb.astype(np.uint8).ravel()
         out = np.empty_like(inp)
@@ -41,11 +41,11 @@ class CUDAFilters():
         inp_ptr = inp.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
         out_ptr = out.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
 
-        edge_filter.run_edge_detect(inp_ptr, out_ptr, w, h, c)
+        edge_filter.RunEdgeDetect(inp_ptr, out_ptr, w, h, c)
 
         return out.reshape(h, w, c)
 
-    def guided_filter_cuda(self, frame_rgb, radius=4, epsilon=0.2):
+    def GuidedFilter(self, frame_rgb, radius=4, epsilon=0.2):
         h, w, c = frame_rgb.shape
         inp = frame_rgb.astype(np.uint8).ravel()
         out = np.empty_like(inp)
@@ -53,7 +53,7 @@ class CUDAFilters():
         inp_ptr = inp.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
         out_ptr = out.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
 
-        guided_filter.applyGuidedFilter(inp_ptr, out_ptr, w, h, ctypes.c_float(epsilon), radius, c)
+        guided_filter.ApplyGuidedFilter(inp_ptr, out_ptr, w, h, ctypes.c_float(epsilon), radius, c)
 
         return out.reshape(h, w, c)
 
@@ -69,9 +69,7 @@ class LaunchWebcamClassifier():
         self.CUDAFilters = CUDAFilters()
 
         # Used for OpenCV direct image processing - Define normalization (works on tensors directly)
-        self.normalize = transforms.Normalize(
-                mean=imageNet_mean, 
-                std=imageNet_std).to(device)
+        self.normalize = transforms.Normalize(mean=imageNet_mean, std=imageNet_std).to(device)
     
     def GrabResNetClassLabels(self):
         # Read from local imagenet_classes.txt file in the labels directory
@@ -120,10 +118,10 @@ class LaunchWebcamClassifier():
     
     def PreprocessDETRInput(self):
         # Edge Detection using custom CUDA DLL - Uncomment to enable
-        # self.frame = self.CUDAFilters.edge_detect_cuda(self.frame)
+        #self.frame = self.CUDAFilters.EdgeDetectFilter(self.frame)
 
         # Guided Filter using custom CUDA DLL - Uncomment to enable
-        # self.frame = self.CUDAFilters.guided_filter_cuda(self.frame, radius=2, epsilon=0.2)
+        #self.frame = self.CUDAFilters.GuidedFilter(self.frame, radius=2, epsilon=0.2)
 
         # Convert BGR to RGB (OpenCV uses BGR, but PyTorch expects RGB)
         self.frame_rgb = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)

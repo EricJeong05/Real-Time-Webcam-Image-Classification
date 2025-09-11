@@ -2,7 +2,6 @@
 #include <device_launch_parameters.h>
 #include <stdio.h>
 #include <assert.h>
-#include <cuda_runtime.h>
 
 #define checkCudaErrors(call) { \
     const cudaError_t error = call; \
@@ -26,14 +25,14 @@ The guided filter works by solving a local linear model: q = aI + b where:
 // Structure to hold filter parameters
 struct GuidedFilterParams {
     float epsilon;      // Regularization parameter
-    int radius;        // Filter window radius
-    int width;         // Image width
-    int height;        // Image height
-    int numChannels;  // Number of color channels (e.g., 3 for RGB)
+    int radius;         // Filter window radius
+    int width;          // Image width
+    int height;         // Image height
+    int numChannels;    // Number of color channels (e.g., 3 for RGB)
 };
 
-// Step 1: Mean filter kernel (for both guidance image and input image)
-__global__ void meanFilterKernel(
+// Mean filter kernel (for both guidance image and input image)
+__global__ void MeanFilterKernel(
     const unsigned char* input,
     float* output,
     const GuidedFilterParams params) 
@@ -97,14 +96,14 @@ __global__ void meanFilterKernel(
     }
 
     // 3. Compute mean values
-    const int outputIdx = (pixelIdx_Y * params.width + pixelIdx_X) * 3;
+    const int outputIdx = (pixelIdx_Y * params.width + pixelIdx_X) * params.numChannels;
     output[outputIdx] = sum_R / windowSize;
     output[outputIdx + 1] = sum_G / windowSize;
     output[outputIdx + 2] = sum_B / windowSize;
 }
 
-// Step 2: Compute variance kernel (since guide image = input image)
-__global__ void computeCovarianceKernel(
+// Compute variance kernel (since guide image = input image)
+__global__ void ComputeCovarianceKernel(
     const float* mean_I,    // mean of image from previous kernel
     const unsigned char* I,  // input image
     float* var_I,          // output variance
@@ -129,8 +128,8 @@ __global__ void computeCovarianceKernel(
             imgY = max(0, min(imgY, params.height - 1));
 
             // Load RGB values (3 channels)
-            const int sharedIdx = (dy * sharedMemWidth + dx) * 3;  // Always 3 for RGB
-            const int imgIdx = (imgY * params.width + imgX) * 3;
+            const int sharedIdx = (dy * sharedMemWidth + dx) * params.numChannels;  // Always 3 for RGB
+            const int imgIdx = (imgY * params.width + imgX) * params.numChannels;
 
             sharedMem[sharedIdx] = I[imgIdx];          // R
             sharedMem[sharedIdx + 1] = I[imgIdx + 1];  // G
@@ -159,7 +158,7 @@ __global__ void computeCovarianceKernel(
         {
             int sharedMem_x = threadIdx.x + dx + params.radius;
             int sharedMem_y = threadIdx.y + dy + params.radius;
-            int shared_idx = (sharedMem_y * sharedMemWidth + sharedMem_x) * 3;
+            int shared_idx = (sharedMem_y * sharedMemWidth + sharedMem_x) * params.numChannels;
 
             // Calculate mean(I*I)
             mean_I2_R += static_cast<float>(sharedMem[shared_idx]) * static_cast<float>(sharedMem[shared_idx]);
@@ -174,14 +173,14 @@ __global__ void computeCovarianceKernel(
     mean_I2_B /= windowSize;
 
     // Compute variance = mean(I*I) - mean(I)*mean(I)
-    const int outputIdx = (pixelIdx_Y * params.width + pixelIdx_X) * 3;
+    const int outputIdx = (pixelIdx_Y * params.width + pixelIdx_X) * params.numChannels;
     var_I[outputIdx] = mean_I2_R - (mean_I[outputIdx] * mean_I[outputIdx]);
     var_I[outputIdx + 1] = mean_I2_G - (mean_I[outputIdx + 1] * mean_I[outputIdx + 1]);
     var_I[outputIdx + 2] = mean_I2_B - (mean_I[outputIdx + 2] * mean_I[outputIdx + 2]);
 }
 
-// Step 3: Compute coefficient kernel
-__global__ void computeCoefficientsKernel(
+// Compute coefficient kernel
+__global__ void ComputeCoefficientsKernel(
     const float* var_I,      // variance from previous kernel
     const float* mean_I,     // mean values from first kernel
     float* a,                // output a coefficient
@@ -196,10 +195,10 @@ __global__ void computeCoefficientsKernel(
     if (pixelIdx_X >= params.width || pixelIdx_Y >= params.height) return;
 
     // Calculate index for this pixel's RGB values
-    const int idx = (pixelIdx_Y * params.width + pixelIdx_X) * 3;
+    const int idx = (pixelIdx_Y * params.width + pixelIdx_X) * params.numChannels;
 
     // For each color channel
-    for (int ch = 0; ch < 3; ch++) {
+    for (int ch = 0; ch < params.numChannels; ch++) {
         // Calculate a = var_I / (var_I + epsilon)
         // Higher variance (edges) → a ≈ 1 (preserve detail)
         // Lower variance (flat areas) → a ≈ 0 (more smoothing)
@@ -211,8 +210,8 @@ __global__ void computeCoefficientsKernel(
     }
 }
 
-// Step 4: Final guided filter kernel
-__global__ void guidedFilterKernel(
+// Final guided filter kernel
+__global__ void GuidedFilterKernel(
     const float* a,           // a coefficients from previous kernel
     const float* b,           // b coefficients from previous kernel
     const unsigned char* I,   // original input image
@@ -237,8 +236,8 @@ __global__ void guidedFilterKernel(
             imgY = max(0, min(imgY, params.height - 1));
 
             // Load RGB values
-            const int sharedIdx = (dy * sharedMemWidth + dx) * 3;
-            const int imgIdx = (imgY * params.width + imgX) * 3;
+            const int sharedIdx = (dy * sharedMemWidth + dx) * params.numChannels;
+            const int imgIdx = (imgY * params.width + imgX) * params.numChannels;
 
             sharedMem[sharedIdx] = I[imgIdx];        // R
             sharedMem[sharedIdx + 1] = I[imgIdx + 1];  // G
@@ -266,14 +265,14 @@ __global__ void guidedFilterKernel(
             // Calculate position in shared memory
             int sharedMem_x = threadIdx.x + dx + params.radius;
             int sharedMem_y = threadIdx.y + dy + params.radius;
-            int shared_idx = (sharedMem_y * sharedMemWidth + sharedMem_x) * 3;
+            int shared_idx = (sharedMem_y * sharedMemWidth + sharedMem_x) * params.numChannels;
 
             // Get coefficients for current window position
             int window_x = pixelIdx_X + dx;
             int window_y = pixelIdx_Y + dy;
             window_x = max(0, min(window_x, params.width - 1));
             window_y = max(0, min(window_y, params.height - 1));
-            int coef_idx = (window_y * params.width + window_x) * 3;
+            int coef_idx = (window_y * params.width + window_x) * params.numChannels;
 
             // Apply q = aI + b for each channel
             sum_R += a[coef_idx] * static_cast<float>(sharedMem[shared_idx]) + b[coef_idx];
@@ -288,14 +287,14 @@ __global__ void guidedFilterKernel(
     sum_B /= windowSize;
 
     // Write final result to output, ensuring values are in [0, 255]
-    const int outputIdx = (pixelIdx_Y * params.width + pixelIdx_X) * 3;
+    const int outputIdx = (pixelIdx_Y * params.width + pixelIdx_X) * params.numChannels;
     output[outputIdx] = static_cast<unsigned char>(max(0.0f, min(255.0f, sum_R)));
     output[outputIdx + 1] = static_cast<unsigned char>(max(0.0f, min(255.0f, sum_G)));
     output[outputIdx + 2] = static_cast<unsigned char>(max(0.0f, min(255.0f, sum_B)));
 }
 
-// Main function to be called from C++/Python
-extern "C" __declspec(dllexport) void applyGuidedFilter(
+// Main function to be called externally
+extern "C" __declspec(dllexport) void ApplyGuidedFilter(
     const unsigned char* h_input,
     unsigned char* h_output,
     int width,
@@ -342,20 +341,20 @@ extern "C" __declspec(dllexport) void applyGuidedFilter(
     int sharedMemSizeInBytes = x_dim * y_dim * numChannels * sizeof(unsigned char);
 
     // 4. Launch kernels in sequence:
-    //    - meanFilterKernel
-    meanFilterKernel<<<gridDim, blockDim, sharedMemSizeInBytes>>>(d_input, d_mean, params);
+    // - meanFilterKernel
+    MeanFilterKernel<<<gridDim, blockDim, sharedMemSizeInBytes>>>(d_input, d_mean, params);
     checkCudaErrors(cudaDeviceSynchronize());
 
-    //    - computeCovarianceKernel
-    computeCovarianceKernel<<<gridDim, blockDim, sharedMemSizeInBytes>>>(d_mean, d_input, d_var, params);
+    // - computeCovarianceKernel
+    ComputeCovarianceKernel<<<gridDim, blockDim, sharedMemSizeInBytes>>>(d_mean, d_input, d_var, params);
     checkCudaErrors(cudaDeviceSynchronize());
 
-    //    - computeCoefficientsKernel (no shared memory needed)
-    computeCoefficientsKernel<<<gridDim, blockDim>>>(d_var, d_mean, d_a, d_b, params);
+    // - computeCoefficientsKernel
+    ComputeCoefficientsKernel<<<gridDim, blockDim>>>(d_var, d_mean, d_a, d_b, params);
     checkCudaErrors(cudaDeviceSynchronize());
 
-    //    - guidedFilterKernel
-    guidedFilterKernel<<<gridDim, blockDim, sharedMemSizeInBytes>>>(d_a, d_b, d_input, d_output, params);
+    // - guidedFilterKernel
+    GuidedFilterKernel<<<gridDim, blockDim, sharedMemSizeInBytes>>>(d_a, d_b, d_input, d_output, params);
     checkCudaErrors(cudaDeviceSynchronize());
 
     // 5. Copy result back to host
